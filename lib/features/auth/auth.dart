@@ -297,7 +297,30 @@ class RegisterStep3Doctor extends StatefulWidget {
 class _R3 extends State<RegisterStep3Doctor> {
   final _fk=GlobalKey<FormState>(); final _lic=TextEditingController(); final _exp=TextEditingController();
   String? _spec; File? _file; String? _fname; bool _loading=false;
-  static const _specs=['Cardiology','Dermatology','General Practice','Gynecology','Neurology','Oncology','Ophthalmology','Orthopedics','Pediatrics','Psychiatry','Radiology','Surgery','Urology'];
+  List<Map<String, dynamic>> _specialtiesList = [];
+  List<String> _specs = [];
+  bool _loadingSpecs = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSpecs();
+  }
+
+  Future<void> _loadSpecs() async {
+    try {
+      final res = await Api.getSpecialties();
+      if (mounted) {
+        setState(() {
+          _specialtiesList = res;
+          _specs = res.map((e) => e['name'].toString()).toList();
+          _loadingSpecs = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingSpecs = false);
+    }
+  }
   Future<void> _pick() async {
     final r=await FilePicker.platform.pickFiles(type:FileType.custom, allowedExtensions:['jpg','jpeg','png','pdf']);
     if(r?.files.single.path!=null) setState((){_file=File(r!.files.single.path!);_fname=r.files.single.name;});
@@ -306,9 +329,10 @@ class _R3 extends State<RegisterStep3Doctor> {
     if(!_fk.currentState!.validate()) return;
     if(_spec==null){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Select specialty')));return;}
     setState(()=>_loading=true);
+    int specId = _specialtiesList.firstWhere((e) => e['name'] == _spec, orElse: () => {'id': 1})['id'];
     try {
       await Api.applyDoctor(n:widget.name,ph:widget.phone,e:widget.email,p:widget.pass,
-          lic:_lic.text.trim(),exp:int.tryParse(_exp.text)??0,spec:_spec!,doc:_file);
+          lic:_lic.text.trim(),exp:int.tryParse(_exp.text)??0,specId:specId,doc:_file);
       if(!mounted) return;
       Navigator.pushNamedAndRemoveUntil(context,'/application-received',(_)=>false);
     } catch(e){if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
@@ -336,7 +360,7 @@ class _R3 extends State<RegisterStep3Doctor> {
       Expanded(child:Inp(label:'Years of Experience',hint:'5',ctrl:_exp,kb:TextInputType.number,validator:V.req)),
     ]),
     const SizedBox(height:12),
-    DropField(label:'Specialty',value:_spec,items:_specs,onChange:(v)=>setState(()=>_spec=v),validator:(v)=>v==null?'Required':null),
+    _loadingSpecs ? const Center(child: CircularProgressIndicator()) : DropField(label:'Specialty',value:_spec,items:_specs,onChange:(v)=>setState(()=>_spec=v),validator:(v)=>v==null?'Required':null),
     const SizedBox(height:12),
     Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
       const Text('License Document',style:label_style),const SizedBox(height:6),

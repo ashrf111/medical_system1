@@ -173,22 +173,28 @@ class _Find extends State<FindDoctor> {
   String _spec = 'All';
   List<Map> _docs = [];
   bool loading = false;
-  static const _specs = [
-    'All',
-    'Cardiology',
-    'Dermatology',
-    'General Practice',
-    'Gynecology',
-    'Neurology',
-    'Ophthalmology',
-    'Orthopedics',
-    'Pediatrics',
-    'Psychiatry'
-  ];
+  List<String> _specs = ['All'];
+  bool _loadingSpecs = true;
+
   @override
   void initState() {
     super.initState();
+    _loadSpecs();
     _search();
+  }
+
+  Future<void> _loadSpecs() async {
+    try {
+      final res = await Api.getSpecialties();
+      if (mounted) {
+        setState(() {
+          _specs = ['All', ...res.map((e) => e['name'].toString())];
+          _loadingSpecs = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingSpecs = false);
+    }
   }
 
   Future<void> _search() async {
@@ -233,7 +239,7 @@ class _Find extends State<FindDoctor> {
                             enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(10),
                                 borderSide: const BorderSide(color: C.border))),
-                        items: _specs
+                        items: _loadingSpecs ? [const DropdownMenuItem(value: 'All', child: Text('All'))] : _specs
                             .map((s) => DropdownMenuItem(
                                 value: s,
                                 child: Text(s,
@@ -289,42 +295,110 @@ class _DocCard extends StatelessWidget {
           Text('\$${doc['fee']}/visit', style: h5),
           const SizedBox(height: 8),
           Btn(label: 'Book', width: 90, onTap: () => _book(ctx)),
+          const SizedBox(height: 6),
+          TextButton.icon(
+            onPressed: () async {
+              try {
+                await Api.createConversation(Api.profileId ?? '', doc['id'].toString());
+                if (ctx.mounted) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('✅ Conversation started! Check Messages tab.')));
+                }
+              } catch (e) {
+                if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(e.toString())));
+              }
+            },
+            icon: const Icon(Icons.chat_bubble_outline, size: 16),
+            label: const Text('Message'),
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(90, 30),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              foregroundColor: C.primary
+            ),
+          )
         ]),
       ]));
   void _book(BuildContext ctx) {
-    final dc = TextEditingController();
-    final tc = TextEditingController();
     final nc = TextEditingController();
+    DateTime? selDate;
+    String? selTime;
+    List<Map<String,dynamic>> slots = [];
+    bool ldSlots = false;
     final fk = GlobalKey<FormState>();
+
     showDialog(
         context: ctx,
         builder: (dlg) => StatefulBuilder(builder: (dlg, set) {
               bool ld = false;
+              
+              Future<void> fetchSlots(DateTime d) async {
+                set((){ selDate=d; selTime=null; ldSlots=true; });
+                try {
+                  final ds = '${d.year}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
+                  final res = await Api.getDoctorSlots(doc['id'].toString(), ds);
+                  set(() { slots = res; ldSlots = false; });
+                } catch(_) {
+                  set(()=>ldSlots=false);
+                }
+              }
+
               return AlertDialog(
                 title: Text('Book — ${doc['name']}'),
                 content: Form(
                     key: fk,
-                    child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      Inp(
-                          label: 'Date',
-                          hint: 'e.g. 2026-05-15',
-                          ctrl: dc,
-                          validator: (v) =>
-                              (v?.isEmpty ?? true) ? 'Required' : null),
-                      const SizedBox(height: 12),
-                      Inp(
-                          label: 'Preferred Time',
-                          hint: 'e.g. 10:00 AM',
-                          ctrl: tc,
-                          validator: (v) =>
-                              (v?.isEmpty ?? true) ? 'Required' : null),
-                      const SizedBox(height: 12),
+                    child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const Text('Select Date', style: label_style),
+                      const SizedBox(height: 8),
+                      InkWell(
+                        onTap: () async {
+                          final d = await showDatePicker(context: ctx, initialDate: selDate ?? DateTime.now(), firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 30)));
+                          if(d!=null) fetchSlots(d);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(border: Border.all(color: C.border), borderRadius: BorderRadius.circular(8)),
+                          child: Row(children: [
+                            const Icon(Icons.calendar_month, size: 18, color: C.primary),
+                            const SizedBox(width: 8),
+                            Text(selDate == null ? 'Choose a date...' : '${selDate!.year}-${selDate!.month.toString().padLeft(2,'0')}-${selDate!.day.toString().padLeft(2,'0')}')
+                          ])
+                        )
+                      ),
+                      const SizedBox(height: 16),
+                      if(selDate != null) ...[
+                        const Text('Available Times', style: label_style),
+                        const SizedBox(height: 8),
+                        ldSlots 
+                          ? const Center(child: CircularProgressIndicator()) 
+                          : slots.isEmpty 
+                            ? const Text('No slots available.', style: TextStyle(color: C.t3, fontSize: 13))
+                            : Wrap(
+                                spacing: 8, runSpacing: 8,
+                                children: slots.map((s) {
+                                  final av = s['available'] == true;
+                                  final t = s['time'].toString();
+                                  return InkWell(
+                                    onTap: av ? () => set(()=>selTime=t) : null,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: selTime == t ? C.primary : (av ? C.bg : Colors.grey.withOpacity(0.1)),
+                                        border: Border.all(color: selTime == t ? C.primary : (av ? C.border : Colors.transparent)),
+                                        borderRadius: BorderRadius.circular(6)
+                                      ),
+                                      child: Text(t, style: TextStyle(color: selTime == t ? Colors.white : (av ? C.t1 : C.t3), fontSize: 12))
+                                    )
+                                  );
+                                }).toList()
+                              ),
+                        const SizedBox(height: 16),
+                      ],
                       Inp(
                           label: 'Notes (optional)',
                           hint: 'Reason for visit...',
                           ctrl: nc,
                           lines: 2),
-                    ])),
+                    ]))),
                 actions: [
                   TextButton(
                       onPressed: () => Navigator.pop(dlg),
@@ -334,21 +408,21 @@ class _DocCard extends StatelessWidget {
                       width: 120,
                       loading: ld,
                       onTap: () async {
+                        if (selDate == null || selTime == null) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Please select date and time')));
+                          return;
+                        }
                         if (!fk.currentState!.validate()) return;
                         set(() => ld = true);
                         try {
-                          await Api.bookAppt(doc['id'].toString(),
-                              dc.text.trim(), tc.text.trim(), nc.text.trim());
+                          final ds = '${selDate!.year}-${selDate!.month.toString().padLeft(2,'0')}-${selDate!.day.toString().padLeft(2,'0')}';
+                          await Api.bookAppt(doc['id'].toString(), ds, selTime!, nc.text.trim());
                           if (dlg.mounted) Navigator.pop(dlg);
                           if (ctx.mounted)
-                            ScaffoldMessenger.of(ctx).showSnackBar(
-                                const SnackBar(
-                                    content: Text(
-                                        '✅ Appointment booked successfully!')));
+                            ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('✅ Appointment booked successfully!')));
                         } catch (e) {
                           if (ctx.mounted)
-                            ScaffoldMessenger.of(ctx).showSnackBar(
-                                SnackBar(content: Text(e.toString())));
+                            ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(e.toString())));
                         }
                         set(() => ld = false);
                       }),

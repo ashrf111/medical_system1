@@ -343,6 +343,17 @@ class _DPats extends State<DoctorPatients> {
                                               '',
                                           style: const TextStyle(
                                               fontSize: 11, color: C.primary))),
+                                  const SizedBox(width: 8),
+                                  IconButton(
+                                      icon: const Icon(Icons.chat_bubble_outline, color: C.primary),
+                                      onPressed: () async {
+                                        try {
+                                          await Api.createConversation(_list[i]['id'].toString(), Api.profileId ?? '');
+                                          if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('✅ Conversation started!')));
+                                        } catch(e) {
+                                          if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(e.toString())));
+                                        }
+                                      })
                                 ])))),
           ])));
 }

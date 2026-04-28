@@ -276,10 +276,20 @@ class _MD extends State<ManageDoctors> {
   bool loading = true;
   String _filter = 'All';
   final _search = TextEditingController();
+  List<Map<String, dynamic>> _specs = [];
+
   @override
   void initState() {
     super.initState();
     _load();
+    _loadSpecs();
+  }
+
+  Future<void> _loadSpecs() async {
+    try {
+      final res = await Api.getSpecialties();
+      if (mounted) setState(() => _specs = res);
+    } catch (_) {}
   }
 
   Future<void> _load() async {
@@ -337,6 +347,16 @@ class _MD extends State<ManageDoctors> {
     }
   }
 
+  Future<void> _delete(String id) async {
+    try {
+      await Api.deleteDoctor(id);
+      _load();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Doctor deleted')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+
   @override
   Widget build(BuildContext ctx) => AdminLayout(
       cur: 2,
@@ -355,6 +375,8 @@ class _MD extends State<ManageDoctors> {
                           prefixIcon:
                               Icon(Icons.search, size: 18, color: C.t3)),
                       onChanged: (_) => _apply())),
+              const SizedBox(width: 12),
+              Btn(label: '+ Add', width: 80, onTap: () => _addDoctorDlg(ctx)),
               const SizedBox(width: 12),
               DropdownButton<String>(
                   value: _filter,
@@ -449,6 +471,18 @@ class _MD extends State<ManageDoctors> {
                                                       .symmetric(vertical: 12)),
                                               child:
                                                   const Text('View Details'))),
+                                      const SizedBox(width: 8),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete_outline, color: C.red),
+                                        onPressed: () => showDialog(context: ctx, builder: (c) => AlertDialog(
+                                          title: const Text('Delete Doctor'),
+                                          content: const Text('Are you sure you want to completely remove this doctor?'),
+                                          actions: [
+                                            TextButton(onPressed: () => Navigator.pop(c), child: const Text('Cancel')),
+                                            Btn(label: 'Delete', color: C.red, width: 80, onTap: () { Navigator.pop(c); _delete(d['id'].toString()); })
+                                          ]
+                                        ))
+                                      )
                                     ]),
                                   ]));
                         })),
@@ -476,6 +510,72 @@ class _MD extends State<ManageDoctors> {
                   child: const Text('Close'))
             ],
           ));
+
+  void _addDoctorDlg(BuildContext ctx) {
+    final fk = GlobalKey<FormState>();
+    final nc = TextEditingController(), phc = TextEditingController(), ec = TextEditingController(), pc = TextEditingController(), lc = TextEditingController(), exc = TextEditingController();
+    int? selSpec;
+    showDialog(
+      context: ctx,
+      builder: (dlg) => StatefulBuilder(builder: (dlg, set) {
+        bool ld = false;
+        return AlertDialog(
+          title: const Text('Add Doctor'),
+          content: Form(
+            key: fk,
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Inp(label: 'Full Name', hint: 'Dr. John', ctrl: nc, validator: V.req),
+                const SizedBox(height: 12),
+                Inp(label: 'Email', hint: 'doc@mail.com', ctrl: ec, validator: V.req),
+                const SizedBox(height: 12),
+                Inp(label: 'Phone', hint: '123456', ctrl: phc, validator: V.req),
+                const SizedBox(height: 12),
+                Inp(label: 'Password', hint: '***', ctrl: pc, pwd: true, validator: V.req),
+                const SizedBox(height: 12),
+                Inp(label: 'License', hint: 'LIC-123', ctrl: lc, validator: V.req),
+                const SizedBox(height: 12),
+                Inp(label: 'Experience (Years)', hint: '5', ctrl: exc, kb: TextInputType.number, validator: V.req),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  value: selSpec,
+                  decoration: const InputDecoration(labelText: 'Specialty'),
+                  items: _specs.map((s) => DropdownMenuItem<int>(value: s['id'], child: Text(s['name']))).toList(),
+                  onChanged: (v) => set(() => selSpec = v),
+                  validator: (v) => v == null ? 'Required' : null,
+                )
+              ])
+            )
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dlg), child: const Text('Cancel')),
+            Btn(label: ld ? '' : 'Create', width: 100, loading: ld, onTap: () async {
+              if(!fk.currentState!.validate()) return;
+              set(() => ld = true);
+              try {
+                await Api.createDoctor({
+                  'fullName': nc.text.trim(),
+                  'email': ec.text.trim(),
+                  'phone': phc.text.trim(),
+                  'password': pc.text.trim(),
+                  'licenseNumber': lc.text.trim(),
+                  'experienceYears': int.tryParse(exc.text.trim()) ?? 0,
+                  'specialtyId': selSpec,
+                  'status': 'active'
+                });
+                _load();
+                if (dlg.mounted) Navigator.pop(dlg);
+                if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Doctor created successfully!')));
+              } catch(e) {
+                if(ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(e.toString())));
+              }
+              set(() => ld = false);
+            })
+          ],
+        );
+      })
+    );
+  }
 }
 
 class _Info extends StatelessWidget {

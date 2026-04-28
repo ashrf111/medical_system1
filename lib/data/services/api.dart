@@ -12,6 +12,9 @@ class Api {
   static String? _currentUserId;
   static String? _currentProfileId; // Maps to patient_id or doctor_id
 
+  static String? get userId => _currentUserId;
+  static String? get profileId => _currentProfileId;
+
   static void setTok(String t) {
     _tok = t;
     if (int.tryParse(t) != null) {
@@ -73,7 +76,7 @@ class Api {
       required String p,
       required String lic,
       required int exp,
-      required String spec,
+      required int specId,
       File? doc}) async {
     final res = _r(await http.post(Uri.parse('$base/auth/signup'),
         headers: _h,
@@ -85,7 +88,7 @@ class Api {
           'role': 'doctor',
           'licenseNumber': lic,
           'experienceYears': exp,
-          'specialtyId': 1, 
+          'specialtyId': specId, 
         })));
     return res;
   }
@@ -215,6 +218,7 @@ class Api {
       if (a['patient_name'] != null) {
         if (q != null && q.isNotEmpty && !a['patient_name'].toString().toLowerCase().contains(q.toLowerCase())) continue;
         uniquePats[a['patient_name']] = {
+          'id': a['patient_id'],
           'name': a['patient_name'],
           'last_visit': a['appointment_date'],
           'condition': a['reason'] ?? 'Routine'
@@ -415,6 +419,28 @@ class Api {
     if (_currentProfileId == null) return {};
     return _r(await http.put(Uri.parse('$base/patients/$_currentProfileId'),
         headers: _h, body: jsonEncode(d)));
+  }
+
+  static Future<List<Map<String, dynamic>>> getSpecialties() async {
+    final res = _r(await http.get(Uri.parse('$base/specialties'), headers: _h));
+    return res is List ? res.cast<Map<String, dynamic>>() : [];
+  }
+
+  static Future<List<Map<String, dynamic>>> getDoctorSlots(String id, String date) async {
+    final res = _r(await http.get(Uri.parse('$base/doctors/$id/slots?date=$date'), headers: _h));
+    return res is List ? res.cast<Map<String, dynamic>>() : [];
+  }
+
+  static Future<Map<String, dynamic>> createDoctor(Map d) async {
+    return _r(await http.post(Uri.parse('$base/admin/doctors'), headers: _h, body: jsonEncode(d)));
+  }
+
+  static Future<Map<String, dynamic>> deleteDoctor(String id) async {
+    return _r(await http.delete(Uri.parse('$base/doctors/$id'), headers: _h));
+  }
+
+  static Future<Map<String, dynamic>> createConversation(String patId, String docId) async {
+    return _r(await http.post(Uri.parse('$base/conversations'), headers: _h, body: jsonEncode({'patientId': patId, 'doctorId': docId})));
   }
 
   static dynamic _r(http.Response res) {
