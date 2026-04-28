@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' hide Badge;
 
 import '../../core/theme/theme.dart';
+import '../../core/utils/auth_utils.dart';
 import '../../data/services/api.dart';
 import '../../shared/widgets/layout.dart';
 import '../../shared/widgets/widgets.dart';
@@ -77,17 +78,17 @@ class _AH extends State<AdminHome> {
                           StatTile(
                               icon: Icons.attach_money,
                               value:
-                                  '\$${(d?['total_revenue'] ?? 0.0).toStringAsFixed(0)}',
+                                  '\$${double.tryParse(d?['total_revenue']?.toString() ?? '0')?.toStringAsFixed(0) ?? '0'}',
                               label: 'Total Revenue',
                               ic: C.green,
                               ib: C.greenLt),
                           StatTile(
                               icon: Icons.hourglass_empty,
-                              value: '${d?['pending_approvals'] ?? 0}',
+                              value: '${d?['pending_doctors'] ?? 0}',
                               label: 'Pending Approvals',
                               ic: C.amber,
                               ib: C.amberLt,
-                              sub: d?['pending_approvals'] != 0
+                              sub: (d?['pending_doctors'] ?? 0) != 0
                                   ? 'Requires action'
                                   : null),
                         ]),
@@ -531,7 +532,7 @@ class _MD extends State<ManageDoctors> {
                 const SizedBox(height: 12),
                 Inp(label: 'Phone', hint: '123456', ctrl: phc, validator: V.req),
                 const SizedBox(height: 12),
-                Inp(label: 'Password', hint: '***', ctrl: pc, pwd: true, validator: V.req),
+                Inp(label: 'Password', hint: '***', ctrl: pc, obs: true, validator: V.req),
                 const SizedBox(height: 12),
                 Inp(label: 'License', hint: 'LIC-123', ctrl: lc, validator: V.req),
                 const SizedBox(height: 12),

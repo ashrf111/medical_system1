@@ -7,6 +7,7 @@ import 'features/auth/auth.dart';
 import 'features/admin/admin.dart';
 import 'features/doctor/doctor.dart';
 import 'features/patient/patient.dart';
+import 'features/patient/chatbot.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,6 +47,7 @@ class App extends StatelessWidget {
         '/admin/doctors':         (_) => const ManageDoctors(),
         '/admin/patients':        (_) => const ManagePatients(),
         '/admin/payments':        (_) => const AdminPayments(),
+        '/admin/chatbot':         (_) => const ChatbotScreen(),
 
         // ── Doctor ───────────────────────────────────────────────────────────
         '/doctor/dashboard':      (_) => const DoctorDashboard(),
@@ -55,6 +57,7 @@ class App extends StatelessWidget {
         '/doctor/messages':       (_) => const DoctorMessages(),
         '/doctor/earnings':       (_) => const DoctorEarnings(),
         '/doctor/profile':        (_) => const DoctorProfile(),
+        '/doctor/chatbot':        (_) => const ChatbotScreen(),
 
         // ── Patient ──────────────────────────────────────────────────────────
         '/patient/dashboard':     (_) => const PatientDashboard(),
@@ -64,6 +67,7 @@ class App extends StatelessWidget {
         '/patient/messages':      (_) => const PatientMessages(),
         '/patient/payments':      (_) => const PatientPayments(),
         '/patient/profile':       (_) => const PatientProfile(),
+        '/patient/chatbot':       (_) => const ChatbotScreen(),
       },
     );
   }

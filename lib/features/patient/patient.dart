@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart' hide Badge;
 import 'package:flutter/services.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:convert';
+import 'dart:io';
 
 import '../../core/theme/theme.dart';
 import '../../data/services/api.dart';
@@ -318,7 +321,28 @@ class _DocCard extends StatelessWidget {
           )
         ]),
       ]));
-  void _book(BuildContext ctx) {
+  void _book(BuildContext ctx) async {
+    final p = await Api.getPatientProfile();
+    final ph = p['phone']?.toString() ?? '';
+    final db = (p['dob'] ?? p['dateOfBirth'] ?? p['date_of_birth'] ?? '').toString();
+    final bt = p['blood_type'] ?? p['bloodType'] ?? '';
+
+    if (ph.isEmpty || db.isEmpty || bt.isEmpty) {
+      if (!ctx.mounted) return;
+      showDialog(context: ctx, builder: (d) => AlertDialog(
+        title: Row(children: const [Icon(Icons.warning, color: C.amber), SizedBox(width: 8), Text('Profile Incomplete')]),
+        content: const Text('For your safety and to ensure the best possible care, please complete your Personal Info and Medical Profile (Phone, DOB, Blood Type) before booking an appointment.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d), child: const Text('Cancel')),
+          Btn(label: 'Go to Profile', width: 130, onTap: () {
+            Navigator.pop(d);
+            Navigator.pushReplacementNamed(ctx, '/patient/profile');
+          })
+        ],
+      ));
+      return;
+    }
+
     final nc = TextEditingController();
     DateTime? selDate;
     String? selTime;
@@ -1594,6 +1618,14 @@ class _PProf extends State<PatientProfile> {
   String? _blood;
   bool _loading = true, _saving = false;
   static const _bloods = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+  String? _img;
+
+  final _pwdFk = GlobalKey<FormState>();
+  final _curPwd = TextEditingController();
+  final _newPwd = TextEditingController();
+  final _confirmPwd = TextEditingController();
+  bool _pwdSaving = false;
+
   @override
   void initState() {
     super.initState();
@@ -1604,16 +1636,17 @@ class _PProf extends State<PatientProfile> {
     try {
       final r = await Api.getPatientProfile();
       setState(() {
-        _nm.text = r['full_name'] ?? '';
+        _nm.text = r['full_name'] ?? r['fullName'] ?? '';
         _ph.text = r['phone'] ?? '';
-        _dob.text = r['dob'] ?? '';
-        _blood = r['blood_type'];
-        _ht.text = '${r['height'] ?? ''}';
-        _wt.text = '${r['weight'] ?? ''}';
+        _dob.text = (r['dob'] ?? r['date_of_birth'] ?? r['dateOfBirth'] ?? '').toString().split('T')[0];
+        _blood = r['blood_type'] ?? r['bloodType'];
+        _ht.text = '${r['height_cm'] ?? r['heightCm'] ?? r['height'] ?? ''}';
+        _wt.text = '${r['weight_kg'] ?? r['weightKg'] ?? r['weight'] ?? ''}';
         _al.text = r['allergies'] ?? '';
-        _cc.text = r['conditions'] ?? '';
-        _en.text = r['emergency_name'] ?? '';
-        _ep.text = r['emergency_phone'] ?? '';
+        _cc.text = r['chronic_conditions'] ?? r['chronicConditions'] ?? r['conditions'] ?? '';
+        _en.text = r['emergency_contact_name'] ?? r['emergencyContactName'] ?? r['emergency_name'] ?? '';
+        _ep.text = r['emergency_contact_phone'] ?? r['emergencyContactPhone'] ?? r['emergency_phone'] ?? '';
+        _img = r['avatar'];
         _loading = false;
       });
     } catch (_) {
@@ -1626,16 +1659,16 @@ class _PProf extends State<PatientProfile> {
     setState(() => _saving = true);
     try {
       await Api.updatePatProfile({
-        'full_name': _nm.text,
+        'fullName': _nm.text,
         'phone': _ph.text,
-        'dob': _dob.text,
-        'blood_type': _blood,
-        'height': double.tryParse(_ht.text),
-        'weight': double.tryParse(_wt.text),
+        'dateOfBirth': _dob.text,
+        'bloodType': _blood,
+        'heightCm': double.tryParse(_ht.text),
+        'weightKg': double.tryParse(_wt.text),
         'allergies': _al.text,
-        'conditions': _cc.text,
-        'emergency_name': _en.text,
-        'emergency_phone': _ep.text
+        'chronicConditions': _cc.text,
+        'emergencyContactName': _en.text,
+        'emergencyContactPhone': _ep.text
       });
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1648,6 +1681,49 @@ class _PProf extends State<PatientProfile> {
     if (mounted) setState(() => _saving = false);
   }
 
+  Future<void> _pickAvatar() async {
+    try {
+      final res = await FilePicker.platform.pickFiles(type: FileType.image, withData: true);
+      if (res != null && res.files.first.bytes != null) {
+        final bytes = res.files.first.bytes!;
+        if (bytes.length > 2 * 1024 * 1024) {
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Image must be less than 2MB')));
+          return;
+        }
+        final b64 = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+        setState(() => _saving = true);
+        await Api.updateAvatar(Api.userId!, b64);
+        setState(() {
+          _img = b64;
+          _saving = false;
+        });
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ Avatar updated')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _changePwd() async {
+    if (!_pwdFk.currentState!.validate()) return;
+    if (_newPwd.text != _confirmPwd.text) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Passwords do not match')));
+      return;
+    }
+    setState(() => _pwdSaving = true);
+    try {
+      await Api.updatePassword(Api.userId!, _curPwd.text, _newPwd.text);
+      _curPwd.clear();
+      _newPwd.clear();
+      _confirmPwd.clear();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ Password updated')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+    setState(() => _pwdSaving = false);
+  }
+
   @override
   Widget build(BuildContext ctx) => PatientLayout(
       cur: 6,
@@ -1657,7 +1733,28 @@ class _PProf extends State<PatientProfile> {
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
               padding: const EdgeInsets.all(14),
-              child: Form(
+              child: Column(children: [
+                Center(
+                  child: Stack(
+                    children: [
+                      Av(_nm.text.isEmpty ? '?' : _nm.text, r: 40, img: _img),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: InkWell(
+                          onTap: _pickAvatar,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(color: C.primary, shape: BoxShape.circle),
+                            child: const Icon(Icons.camera_alt, color: Colors.white, size: 16),
+                          ),
+                        ),
+                      )
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Form(
                   key: _fk,
                   child: Column(children: [
                     InfoSec(
@@ -1753,6 +1850,26 @@ class _PProf extends State<PatientProfile> {
                         ])),
                     const SizedBox(height: 20),
                     Btn(label: 'Save Changes', loading: _saving, onTap: _save),
-                    const SizedBox(height: 20),
-                  ]))));
+                  ])),
+                const SizedBox(height: 24),
+                Form(
+                  key: _pwdFk,
+                  child: InfoSec(
+                    icon: Icons.lock_outline,
+                    title: 'Change Password',
+                    child: Column(children: [
+                      Inp(label: 'Current Password', hint: '***', ctrl: _curPwd, obs: true, validator: (v) => (v?.isEmpty ?? true) ? 'Required' : null),
+                      const SizedBox(height: 12),
+                      Row(children: [
+                        Expanded(child: Inp(label: 'New Password', hint: '***', ctrl: _newPwd, obs: true, validator: (v) => (v?.isEmpty ?? true) ? 'Required' : null)),
+                        const SizedBox(width: 14),
+                        Expanded(child: Inp(label: 'Confirm Password', hint: '***', ctrl: _confirmPwd, obs: true, validator: (v) => (v?.isEmpty ?? true) ? 'Required' : null)),
+                      ]),
+                      const SizedBox(height: 20),
+                      Btn(label: 'Update Password', loading: _pwdSaving, onTap: _changePwd, color: C.primary),
+                    ]),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ])));
 }

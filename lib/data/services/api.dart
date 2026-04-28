@@ -99,17 +99,9 @@ class Api {
 
   // ADMIN
   static Future<Map<String, dynamic>> adminHome() async {
-    final res = _r(await http.get(Uri.parse('$base/admin/stats'), headers: _h));
-    return {
-      'stats': {
-        'total_patients': res['total_patients'] ?? 0,
-        'total_doctors': res['total_doctors'] ?? 0,
-        'total_appointments': res['total_appointments'] ?? 0,
-        'revenue': res['total_revenue'] ?? 0,
-        'pending_doctors': res['pending_doctors'] ?? 0,
-      },
-      'recent_activity': []
-    };
+    final d = DateTime.now().toString().substring(0, 10);
+    final res = _r(await http.get(Uri.parse('$base/admin/stats?date=$d'), headers: _h));
+    return res;
   }
 
   static Future<Map<String, dynamic>> adminAppointments() async {
@@ -120,6 +112,15 @@ class Api {
   static Future<Map<String, dynamic>> adminPayments() async {
     final res = _r(await http.get(Uri.parse('$base/payments'), headers: _h));
     return {'payments': res is List ? res : (res['payments'] ?? [])};
+  }
+
+  static Future<String> chat(List<Map<String, String>> messages) async {
+    final res = _r(await http.post(
+      Uri.parse('$base/chat'),
+      headers: _h,
+      body: jsonEncode({"messages": messages}),
+    ));
+    return res['reply'];
   }
 
   static Future<Map<String, dynamic>> getDoctors() async {
@@ -285,20 +286,34 @@ class Api {
     if (_currentProfileId == null) return {};
     try {
       final appts = await http.get(Uri.parse('$base/patients/$_currentProfileId/appointments'), headers: _h);
+      final stats = await http.get(Uri.parse('$base/patients/$_currentProfileId/stats'), headers: _h);
+      
       List aList = [];
       if (appts.statusCode == 200) aList = jsonDecode(appts.body) as List;
       
+      Map res = {};
+      if (stats.statusCode == 200) res = jsonDecode(stats.body);
+
       final upcoming = aList.where((a) => a['status'] == 'confirmed' || a['status'] == 'pending').toList();
-      
+      final recentDocs = []; 
+
       return {
-        'upcoming': upcoming.isEmpty ? null : {
-          'id': upcoming[0]['id'],
-          'doctor': upcoming[0]['doctor_name'] ?? 'Doctor',
-          'specialty': upcoming[0]['specialty'] ?? '',
-          'date': upcoming[0]['appointment_date'],
-          'time': upcoming[0]['appointment_time'],
-        },
-        'recent_doctors': []
+        'upcoming_appointments': res['upcoming_appointments'] ?? 0,
+        'past_consultations': res['past_consultations'] ?? 0,
+        'active_prescriptions': res['active_prescriptions'] ?? 0,
+        'health_score': res['health_score'] ?? 92,
+        'upcoming': upcoming.map((a) => {
+          'id': a['id'],
+          'doctor': a['doctor_name'] ?? 'Doctor',
+          'specialty': a['specialty'] ?? '',
+          'date': a['appointment_date'],
+          'time': a['appointment_time'],
+        }).toList(),
+        'top_doctors': recentDocs.map((d) => {
+          'id': d['doctor_id'],
+          'name': d['doctor_name'] ?? 'Doctor',
+          'specialty': d['specialty'] ?? '',
+        }).toList(),
       };
     } catch (_) {
       return {};
@@ -441,6 +456,34 @@ class Api {
 
   static Future<Map<String, dynamic>> createConversation(String patId, String docId) async {
     return _r(await http.post(Uri.parse('$base/conversations'), headers: _h, body: jsonEncode({'patientId': patId, 'doctorId': docId})));
+  }
+
+  static Future<Map<String, dynamic>> updateAvatar(String userId, String base64Data) async {
+    return _r(await http.put(Uri.parse('$base/users/$userId/avatar'),
+        headers: _h, body: jsonEncode({'avatar': base64Data})));
+  }
+
+  static Future<Map<String, dynamic>> updatePassword(String userId, String currentPwd, String newPwd) async {
+    return _r(await http.put(Uri.parse('$base/users/$userId/password'),
+        headers: _h, body: jsonEncode({'currentPassword': currentPwd, 'newPassword': newPwd})));
+  }
+
+  static Future<List<dynamic>> getAllDoctors() async {
+    try {
+      final res = _r(await http.get(Uri.parse('$base/doctors/all'), headers: _h));
+      return res is List ? res : (res['doctors'] ?? []);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>> getAdminStats() async {
+    final d = DateTime.now().toString().substring(0, 10);
+    try {
+      return _r(await http.get(Uri.parse('$base/admin/stats?date=$d'), headers: _h));
+    } catch (_) {
+      return {};
+    }
   }
 
   static dynamic _r(http.Response res) {

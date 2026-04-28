@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart' hide Badge;
+import 'package:file_picker/file_picker.dart';
+import 'dart:convert';
+import 'dart:io';
 
 import '../../core/theme/theme.dart';
 import '../../data/services/api.dart';
@@ -969,21 +972,15 @@ class _DProf extends State<DoctorProfile> {
   final _cla = TextEditingController();
   String? _spec;
   bool _loading = true, _saving = false;
-  static const _specs = [
-    'Cardiology',
-    'Dermatology',
-    'General Practice',
-    'Gynecology',
-    'Neurology',
-    'Oncology',
-    'Ophthalmology',
-    'Orthopedics',
-    'Pediatrics',
-    'Psychiatry',
-    'Radiology',
-    'Surgery',
-    'Urology'
-  ];
+  String? _img;
+  
+  final _pwdFk = GlobalKey<FormState>();
+  final _curPwd = TextEditingController();
+  final _newPwd = TextEditingController();
+  final _confirmPwd = TextEditingController();
+  bool _pwdSaving = false;
+  List<Map<String, dynamic>> _specs = [];
+  int? _specId;
   @override
   void initState() {
     super.initState();
@@ -992,16 +989,19 @@ class _DProf extends State<DoctorProfile> {
 
   Future<void> _load() async {
     try {
+      final sList = await Api.getSpecialties();
       final r = await Api.getDoctorProfile();
       setState(() {
-        _spec = r['specialty'];
+        _specs = sList;
+        _specId = r['specialty_id'];
         _fee.text = '${r['consultation_fee'] ?? ''}';
-        _exp.text = '${r['years_of_experience'] ?? ''}';
+        _exp.text = '${r['experience_years'] ?? ''}';
         _lic.text = r['license_number'] ?? '';
         _bio.text = r['bio'] ?? '';
         _edu.text = r['education'] ?? '';
         _cln.text = r['clinic_name'] ?? '';
         _cla.text = r['clinic_address'] ?? '';
+        _img = r['avatar'];
         _loading = false;
       });
     } catch (_) {
@@ -1014,14 +1014,14 @@ class _DProf extends State<DoctorProfile> {
     setState(() => _saving = true);
     try {
       await Api.updateDoctorProfile({
-        'specialty': _spec,
-        'consultation_fee': double.tryParse(_fee.text) ?? 0,
-        'years_of_experience': int.tryParse(_exp.text) ?? 0,
-        'license_number': _lic.text,
+        'specialtyId': _specId,
+        'consultationFee': double.tryParse(_fee.text) ?? 0,
+        'experienceYears': int.tryParse(_exp.text) ?? 0,
+        'licenseNumber': _lic.text,
         'bio': _bio.text,
         'education': _edu.text,
-        'clinic_name': _cln.text,
-        'clinic_address': _cla.text
+        'clinicName': _cln.text,
+        'clinicAddress': _cla.text
       });
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1034,6 +1034,49 @@ class _DProf extends State<DoctorProfile> {
     if (mounted) setState(() => _saving = false);
   }
 
+  Future<void> _pickAvatar() async {
+    try {
+      final res = await FilePicker.platform.pickFiles(type: FileType.image, withData: true);
+      if (res != null && res.files.first.bytes != null) {
+        final bytes = res.files.first.bytes!;
+        if (bytes.length > 2 * 1024 * 1024) {
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Image must be less than 2MB')));
+          return;
+        }
+        final b64 = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+        setState(() => _saving = true);
+        await Api.updateAvatar(Api.userId!, b64);
+        setState(() {
+          _img = b64;
+          _saving = false;
+        });
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ Avatar updated')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _changePwd() async {
+    if (!_pwdFk.currentState!.validate()) return;
+    if (_newPwd.text != _confirmPwd.text) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Passwords do not match')));
+      return;
+    }
+    setState(() => _pwdSaving = true);
+    try {
+      await Api.updatePassword(Api.userId!, _curPwd.text, _newPwd.text);
+      _curPwd.clear();
+      _newPwd.clear();
+      _confirmPwd.clear();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ Password updated')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+    setState(() => _pwdSaving = false);
+  }
+
   @override
   Widget build(BuildContext ctx) => DoctorLayout(
       cur: 6,
@@ -1043,7 +1086,28 @@ class _DProf extends State<DoctorProfile> {
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
               padding: const EdgeInsets.all(14),
-              child: Form(
+              child: Column(children: [
+                Center(
+                  child: Stack(
+                    children: [
+                      Av('Dr. ${Api.userId}', r: 40, img: _img),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: InkWell(
+                          onTap: _pickAvatar,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(color: C.primary, shape: BoxShape.circle),
+                            child: const Icon(Icons.camera_alt, color: Colors.white, size: 16),
+                          ),
+                        ),
+                      )
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Form(
                   key: _fk,
                   child: Column(children: [
                     InfoSec(
@@ -1054,14 +1118,26 @@ class _DProf extends State<DoctorProfile> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Expanded(
-                                    child: DropField(
-                                        label: 'Specialty',
-                                        value: _spec,
-                                        items: _specs,
-                                        onChange: (v) =>
-                                            setState(() => _spec = v),
-                                        validator: (v) =>
-                                            v == null ? 'Required' : null)),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text('Specialty', style: label),
+                                        const SizedBox(height: 6),
+                                        DropdownButtonFormField<int>(
+                                          value: _specId,
+                                          decoration: InputDecoration(
+                                            filled: true,
+                                            fillColor: C.input,
+                                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: C.border)),
+                                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: C.border)),
+                                          ),
+                                          items: _specs.map((s) => DropdownMenuItem<int>(value: s['id'], child: Text(s['name']))).toList(),
+                                          onChanged: (v) => setState(() => _specId = v),
+                                          validator: (v) => v == null ? 'Required' : null,
+                                        ),
+                                      ],
+                                    )),
                                 const SizedBox(width: 14),
                                 Expanded(
                                     child: Inp(
@@ -1123,6 +1199,26 @@ class _DProf extends State<DoctorProfile> {
                         ])),
                     const SizedBox(height: 20),
                     Btn(label: 'Save Changes', loading: _saving, onTap: _save),
-                    const SizedBox(height: 20),
-                  ]))));
+                  ])),
+                const SizedBox(height: 24),
+                Form(
+                  key: _pwdFk,
+                  child: InfoSec(
+                    icon: Icons.lock_outline,
+                    title: 'Change Password',
+                    child: Column(children: [
+                      Inp(label: 'Current Password', hint: '***', ctrl: _curPwd, obs: true, validator: (v) => (v?.isEmpty ?? true) ? 'Required' : null),
+                      const SizedBox(height: 12),
+                      Row(children: [
+                        Expanded(child: Inp(label: 'New Password', hint: '***', ctrl: _newPwd, obs: true, validator: (v) => (v?.isEmpty ?? true) ? 'Required' : null)),
+                        const SizedBox(width: 14),
+                        Expanded(child: Inp(label: 'Confirm Password', hint: '***', ctrl: _confirmPwd, obs: true, validator: (v) => (v?.isEmpty ?? true) ? 'Required' : null)),
+                      ]),
+                      const SizedBox(height: 20),
+                      Btn(label: 'Update Password', loading: _pwdSaving, onTap: _changePwd, color: C.primary),
+                    ]),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ])));
 }

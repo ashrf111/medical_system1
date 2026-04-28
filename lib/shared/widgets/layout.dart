@@ -297,6 +297,11 @@ class DoctorLayout extends StatelessWidget {
         activeIcon: Icons.person,
         label: 'Profile',
         route: '/doctor/profile'),
+    NavItem(
+        icon: Icons.psychology_outlined,
+        activeIcon: Icons.psychology,
+        label: 'AI Assistant',
+        route: '/doctor/chatbot'),
   ];
 
   @override
@@ -358,6 +363,11 @@ class PatientLayout extends StatelessWidget {
         activeIcon: Icons.person,
         label: 'My Profile',
         route: '/patient/profile'),
+    NavItem(
+        icon: Icons.psychology_outlined,
+        activeIcon: Icons.psychology,
+        label: 'AI Assistant',
+        route: '/patient/chatbot'),
   ];
 
   @override
@@ -409,6 +419,11 @@ class AdminLayout extends StatelessWidget {
         activeIcon: Icons.payments,
         label: 'Payments',
         route: '/admin/payments'),
+    NavItem(
+        icon: Icons.psychology_outlined,
+        activeIcon: Icons.psychology,
+        label: 'AI Assistant',
+        route: '/admin/chatbot'),
   ];
 
   @override

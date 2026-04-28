@@ -5,6 +5,7 @@ import '../../core/theme/theme.dart';
 import '../../core/utils/auth_utils.dart';
 import '../../data/services/api.dart';
 import '../../shared/widgets/widgets.dart';
+import '../patient/chatbot.dart';
 
 // ─── Gradient shell ───────────────────────────────────────────────────────────
 class _Shell extends StatelessWidget {
@@ -22,97 +23,233 @@ class _Shell extends StatelessWidget {
 }
 
 // ═══════════════════════ LANDING PAGE ════════════════════════════════════════
-class LandingPage extends StatelessWidget {
+
+class LandingPage extends StatefulWidget {
   const LandingPage({super.key});
+  @override State<LandingPage> createState() => _LandingState();
+}
+
+class _LandingState extends State<LandingPage> {
+  String? _statsDocs, _statsPats, _statsAppts;
+  List<dynamic> _doctors = [];
+  bool _loading = true;
+
+  @override void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final stats = await Api.getAdminStats();
+      final docs = await Api.getAllDoctors();
+      if (mounted) {
+        setState(() {
+          _statsDocs = stats['total_doctors']?.toString() ?? '500+';
+          _statsPats = stats['total_patients']?.toString() ?? '50K+';
+          _statsAppts = stats['total_appointments']?.toString() ?? '200K+';
+          _doctors = docs.where((d) => d['status'] == 'approved').toList();
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   @override Widget build(BuildContext ctx) => Scaffold(
-    body: Container(decoration: const BoxDecoration(gradient: LinearGradient(
-        begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [C.g1, C.g2, Color(0xFF2563EB)])),
-      child: SafeArea(child: Column(children: [
-        // NAV
-        Padding(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            const Text('MediDash', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
-            Row(children: [
-              _NavLink('Home', () {}), const SizedBox(width: 8),
-              _NavLink('Find Doctors', () => Navigator.pushNamed(ctx, '/login')), const SizedBox(width: 16),
-              OutlinedButton(onPressed: () => Navigator.pushNamed(ctx, '/login'),
-                style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: Colors.white38), padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8)),
-                child: const Text('Sign In')),
-              const SizedBox(width: 8),
-              ElevatedButton(onPressed: () => Navigator.pushNamed(ctx, '/register'),
-                style: ElevatedButton.styleFrom(backgroundColor: C.primary, padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8)),
-                child: const Text('Get Started', style: TextStyle(color: Colors.white))),
-            ]),
-          ])),
-        Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(24), child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const SizedBox(height: 40),
-            // Hero
-            Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(20)),
-              child: const Text('Healthcare made simple', style: TextStyle(color: Colors.white, fontSize: 13))),
+    backgroundColor: C.bg,
+    body: SingleChildScrollView(child: Column(children: [
+      // NAV & HERO SECTION (Dark Gradient)
+      Container(
+        decoration: const BoxDecoration(gradient: LinearGradient(
+          begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [C.g1, C.g2, Color(0xFF2563EB)])),
+        child: SafeArea(bottom: false, child: Column(children: [
+          // NAV
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              const Text('MediDash', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
+              Row(children: [
+                OutlinedButton(onPressed: () => Navigator.pushNamed(ctx, '/login'),
+                  style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: Colors.white38)),
+                  child: const Text('Sign In')),
+                const SizedBox(width: 8),
+                ElevatedButton(onPressed: () => Navigator.pushNamed(ctx, '/register'),
+                  style: ElevatedButton.styleFrom(backgroundColor: C.primary),
+                  child: const Text('Get Started', style: TextStyle(color: Colors.white))),
+              ]),
+            ])),
+          // HERO CONTENT
+          Padding(padding: const EdgeInsets.all(24), child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const SizedBox(height: 20),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(20)),
+                child: const Text('Healthcare made simple', style: TextStyle(color: Colors.white, fontSize: 13))),
+              const SizedBox(height: 20),
+              const Text('Your health,\nsorted.', style: TextStyle(color: Colors.white, fontSize: 48, fontWeight: FontWeight.w800, height: 1.1)),
+              const SizedBox(height: 18),
+              Text('Book appointments with verified doctors, get digital prescriptions, and keep your medical history in one place.',
+                  style: TextStyle(color: Colors.white.withOpacity(0.75), fontSize: 16, height: 1.5)),
+              const SizedBox(height: 32),
+              Row(children: [
+                Expanded(child: ElevatedButton(onPressed: () => Navigator.pushNamed(ctx, '/register'),
+                  style: ElevatedButton.styleFrom(backgroundColor: C.primary, padding: const EdgeInsets.symmetric(vertical: 14)),
+                  child: const Text('Create free account →', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)))),
+                const SizedBox(width: 12),
+                Expanded(child: OutlinedButton(onPressed: () => Navigator.pushNamed(ctx, '/login'),
+                  style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: Colors.white38), padding: const EdgeInsets.symmetric(vertical: 14)),
+                  child: const Text('Sign in'))),
+              ]),
+              const SizedBox(height: 48),
+            ])),
+        ])),
+      ),
+      
+      // STATS BAR
+      Container(color: Color(0xFF0F172A), padding: const EdgeInsets.symmetric(vertical: 40),
+        child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+          _Stat(_statsDocs ?? '...', 'Verified doctors'),
+          _Stat(_statsPats ?? '...', 'Active patients'),
+          _Stat(_statsAppts ?? '...', 'Appointments'),
+        ]),
+      ),
+
+      // SPECIALTIES GRID
+      Container(padding: const EdgeInsets.all(24), color: Colors.white, width: double.infinity,
+        child: Column(children: [
+          const SizedBox(height: 20),
+          const Text('Browse by specialty', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+          const SizedBox(height: 10),
+          const Text('From routine check-ups to specialist consultations — we\'ve got you covered.', style: TextStyle(color: C.t2, fontSize: 15), textAlign: TextAlign.center),
+          const SizedBox(height: 30),
+          Wrap(spacing: 12, runSpacing: 12, alignment: WrapAlignment.center, children: [
+            _SpecCard(Icons.favorite, 'Cardiology'), _SpecCard(Icons.psychology, 'Neurology'),
+            _SpecCard(Icons.wb_sunny, 'Dermatology'), _SpecCard(Icons.accessibility_new, 'Orthopedics'),
+            _SpecCard(Icons.child_care, 'Pediatrics'), _SpecCard(Icons.record_voice_over, 'Psychiatry'),
+            _SpecCard(Icons.remove_red_eye, 'Ophthalmology'), _SpecCard(Icons.monitor_heart, 'General Practice'),
+          ]),
+          const SizedBox(height: 20),
+        ])),
+
+      // FEATURED DOCTORS
+      if (_doctors.isNotEmpty)
+        Container(padding: const EdgeInsets.all(24), color: C.bg, width: double.infinity,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const SizedBox(height: 20),
-            const Text('Your health,\nsorted.', style: TextStyle(color: Colors.white, fontSize: 48,
-                fontWeight: FontWeight.w800, height: 1.1)),
-            const SizedBox(height: 18),
-            Text('Book appointments with verified doctors, get digital prescriptions, and keep your medical history in one place.',
-                style: TextStyle(color: Colors.white.withOpacity(0.75), fontSize: 16, height: 1.5)),
-            const SizedBox(height: 32),
-            Row(children: [
-              Expanded(child: ElevatedButton(onPressed: () => Navigator.pushNamed(ctx, '/register'),
-                style: ElevatedButton.styleFrom(backgroundColor: C.primary, padding: const EdgeInsets.symmetric(vertical: 14)),
-                child: const Text('Create free account →', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)))),
-              const SizedBox(width: 12),
-              Expanded(child: OutlinedButton(onPressed: () => Navigator.pushNamed(ctx, '/login'),
-                style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: Colors.white38), padding: const EdgeInsets.symmetric(vertical: 14)),
-                child: const Text('Sign in'))),
+            const Text('Featured specialists', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+            const SizedBox(height: 10),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              const Text('Book appointments with top-rated professionals.', style: TextStyle(color: C.t2, fontSize: 15)),
+              TextButton(onPressed: () => Navigator.pushNamed(context, '/register'), child: const Text('View All →', style: TextStyle(color: C.primary, fontWeight: FontWeight.w600))),
             ]),
-            const SizedBox(height: 48),
-            // Stats
-            Row(children: [
-              _Stat('500+', 'Verified doctors'), const SizedBox(width: 40),
-              _Stat('50K+', 'Patients'), const SizedBox(width: 40),
-              _Stat('200K+', 'Appointments'),
-            ]),
-            const SizedBox(height: 48),
-            // Search card
-            Container(padding: const EdgeInsets.all(22),
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.white.withOpacity(0.2))),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('Search for a doctor', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 12),
-                TextField(decoration: InputDecoration(hintText: 'e.g. Cardiologist, Dr. Ahmed Khalil...',
-                    hintStyle: const TextStyle(color: C.t3, fontSize: 14),
-                    prefixIcon: const Icon(Icons.search, color: C.t3),
-                    filled: true, fillColor: Colors.white,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none))),
-                const SizedBox(height: 10),
-                SizedBox(width: double.infinity,
-                  child: ElevatedButton(onPressed: () => Navigator.pushNamed(ctx, '/login'),
-                    style: ElevatedButton.styleFrom(backgroundColor: C.primary, padding: const EdgeInsets.symmetric(vertical: 14)),
-                    child: const Text('Search Doctors', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)))),
-                const SizedBox(height: 14),
-                Wrap(spacing: 8, runSpacing: 8, children: ['Cardiology','Neurology','Dermatology','Orthopedics','Pediatrics','Psychiatry']
-                    .map((s) => Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white.withOpacity(0.2))),
-                        child: Text(s, style: const TextStyle(color: Colors.white70, fontSize: 12)))).toList()),
-                const SizedBox(height: 16),
-                Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: Colors.white.withOpacity(0.07), borderRadius: BorderRadius.circular(10)),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Text('HOW IT WORKS', style: TextStyle(color: Colors.white60, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1)),
-                    const SizedBox(height: 10),
-                    _Step(1, 'Register as a patient'), _Step(2, 'Find and book a doctor'), _Step(3, 'Attend your appointment'),
-                  ])),
-              ])),
-          ]))),
-      ]))));
+            const SizedBox(height: 20),
+            SizedBox(height: 200, child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: _doctors.length,
+              itemBuilder: (ctx, i) {
+                final d = _doctors[i];
+                return GestureDetector(
+                  onTap: () {
+                    showModalBottomSheet(context: ctx, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (_) => _DoctorProfileSheet(doc: d));
+                  },
+                  child: Container(width: 160, margin: const EdgeInsets.only(right: 16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: C.border)),
+                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Av(d['fullName'] ?? d['full_name'] ?? '', r: 32, img: d['avatar']),
+                      const SizedBox(height: 12),
+                      Text(d['fullName'] ?? d['full_name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 4),
+                      Text(d['specialty'] ?? d['specialty_name'] ?? '', style: const TextStyle(color: C.t2, fontSize: 12), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 8),
+                      Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: C.greenLt, borderRadius: BorderRadius.circular(12)),
+                        child: Text('\$${d['consultationFee'] ?? d['consultation_fee'] ?? 0}', style: const TextStyle(color: C.green, fontSize: 11, fontWeight: FontWeight.w700))),
+                    ])),
+                );
+              },
+            )),
+          ])),
+
+      // HOW IT WORKS
+      Container(padding: const EdgeInsets.all(24), color: Colors.white, width: double.infinity,
+        child: Column(children: [
+          const SizedBox(height: 20),
+          const Text('How it works', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+          const SizedBox(height: 30),
+          _HowStep('01', 'Create a free account', 'Sign up in under a minute. No subscription, no credit card needed to get started.'),
+          _HowStep('02', 'Find a specialist', 'Browse doctors, read patient reviews, and check real-time availability.'),
+          _HowStep('03', 'Book and pay', 'Pick a slot that suits you, pay online, and you\'re set.'),
+          _HowStep('04', 'Attend your appointment', 'Show up in person or join a video call — whatever works best for you.'),
+          const SizedBox(height: 20),
+        ])),
+      ],
+    )),
+    floatingActionButton: FloatingActionButton(
+      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ChatbotScreen(isGuest: true))),
+      backgroundColor: C.primary,
+      child: const Icon(Icons.psychology, color: Colors.white, size: 28),
+    ),
+  );
 }
-class _NavLink extends StatelessWidget {
-  final String t; final VoidCallback f;
-  const _NavLink(this.t, this.f);
-  @override Widget build(BuildContext ctx) => TextButton(onPressed: f, child: Text(t, style: const TextStyle(color: Colors.white70, fontSize: 14)));
+
+class _SpecCard extends StatelessWidget {
+  final IconData ic; final String t; const _SpecCard(this.ic, this.t);
+  @override Widget build(BuildContext ctx) => GestureDetector(
+    onTap: () => Navigator.pushNamed(ctx, '/register'),
+    child: Container(
+      width: 100, height: 100, decoration: BoxDecoration(color: C.bg, borderRadius: BorderRadius.circular(14)),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Icon(ic, color: C.primary, size: 34), const SizedBox(height: 10),
+        Text(t, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: C.sidebar), textAlign: TextAlign.center),
+      ])));
 }
+
+class _HowStep extends StatelessWidget {
+  final String n, t, d; const _HowStep(this.n, this.t, this.d);
+  @override Widget build(BuildContext ctx) => Padding(padding: const EdgeInsets.only(bottom: 24), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Text(n, style: const TextStyle(color: C.primary, fontSize: 32, fontWeight: FontWeight.w800)),
+    const SizedBox(width: 20),
+    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(t, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+      const SizedBox(height: 4),
+      Text(d, style: const TextStyle(fontSize: 14, color: C.t2, height: 1.4)),
+    ]))
+  ]));
+}
+
+class _DoctorProfileSheet extends StatelessWidget {
+  final Map doc; const _DoctorProfileSheet({required this.doc});
+  @override Widget build(BuildContext ctx) => Container(
+    padding: const EdgeInsets.all(24),
+    decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    child: SafeArea(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Av(doc['fullName'] ?? doc['full_name'] ?? '', r: 36, img: doc['avatar']),
+        const SizedBox(width: 16),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(doc['fullName'] ?? doc['full_name'] ?? '', style: h3),
+          Text(doc['specialty'] ?? doc['specialty_name'] ?? '', style: const TextStyle(color: C.t2, fontSize: 14)),
+          const SizedBox(height: 4),
+          Row(children: [
+            const Icon(Icons.star, color: Colors.amber, size: 16),
+            Text(' ${doc['averageRating'] ?? doc['average_rating'] ?? 'New'}  ·  ${doc['yearsOfExperience'] ?? doc['experience_years'] ?? 0}y exp', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          ])
+        ]))
+      ]),
+      const SizedBox(height: 24),
+      if (doc['bio'] != null && doc['bio'].toString().isNotEmpty) ...[
+        const Text('About', style: h5), const SizedBox(height: 8),
+        Text(doc['bio'], style: body),
+        const SizedBox(height: 20),
+      ],
+      const Text('Consultation Fee', style: h5), const SizedBox(height: 8),
+      Text('\$${doc['consultationFee'] ?? doc['consultation_fee'] ?? 0} per visit', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: C.green)),
+      const SizedBox(height: 32),
+      Btn(label: 'Sign in to book', onTap: () { Navigator.pop(ctx); Navigator.pushNamed(ctx, '/login'); }),
+    ])));
+}
+
 class _Stat extends StatelessWidget {
   final String v, l; const _Stat(this.v, this.l);
   @override Widget build(BuildContext ctx) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -120,14 +257,7 @@ class _Stat extends StatelessWidget {
     Text(l, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12)),
   ]);
 }
-class _Step extends StatelessWidget {
-  final int n; final String t; const _Step(this.n, this.t);
-  @override Widget build(BuildContext ctx) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [
-    Container(width: 22, height: 22, decoration: BoxDecoration(color: C.primary, borderRadius: BorderRadius.circular(6)),
-        alignment: Alignment.center, child: Text('$n', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600))),
-    const SizedBox(width: 10), Text(t, style: const TextStyle(color: Colors.white, fontSize: 13)),
-  ]));
-}
+
 
 // ═══════════════════════ LOGIN ════════════════════════════════════════════════
 class LoginPage extends StatefulWidget {
@@ -172,15 +302,7 @@ class _LoginState extends State<LoginPage> {
       GestureDetector(onTap: () => Navigator.pushNamed(ctx, '/register'),
           child: const Text('Create one', style: TextStyle(fontSize: 14, color: C.primary, fontWeight: FontWeight.w600))),
     ]),
-    const SizedBox(height: 20),
-    Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: C.primaryLt, borderRadius: BorderRadius.circular(10)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: const [
-          Text('Demo accounts:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: C.primary)),
-          SizedBox(height: 4),
-          Text('Doctor  → doctor@test.com   / any password', style: TextStyle(fontSize: 11, color: C.t2)),
-          Text('Patient → patient@test.com  / any password', style: TextStyle(fontSize: 11, color: C.t2)),
-          Text('Admin   → admin@test.com    / any password', style: TextStyle(fontSize: 11, color: C.t2)),
-        ])),
+    const SizedBox(height: 10),
   ])));
 }
 

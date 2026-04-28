@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:convert';
 import '../../core/theme/theme.dart';
 
 // ─── Btn ─────────────────────────────────────────────────────────────────────
@@ -99,9 +100,19 @@ class Badge extends StatelessWidget {
 
 // ─── Avatar ──────────────────────────────────────────────────────────────────
 class Av extends StatelessWidget {
-  final String name; final double r; final Color? bg;
-  const Av(this.name,{super.key,this.r=20,this.bg});
+  final String name; final double r; final Color? bg; final String? img;
+  const Av(this.name,{super.key,this.r=20,this.bg,this.img});
   @override Widget build(BuildContext ctx) {
+    if (img != null && img!.isNotEmpty) {
+      if (img!.startsWith('data:image')) {
+        try {
+          final b64 = img!.split(',').last;
+          return CircleAvatar(radius: r, backgroundColor: bg??C.primaryLt, backgroundImage: MemoryImage(base64Decode(b64)));
+        } catch (_) {}
+      } else {
+        return CircleAvatar(radius: r, backgroundColor: bg??C.primaryLt, backgroundImage: NetworkImage(img!));
+      }
+    }
     final parts=name.trim().split(' ');
     final ini=parts.length>=2?'${parts[0][0]}${parts[1][0]}'.toUpperCase():name.isNotEmpty?name[0].toUpperCase():'?';
     return CircleAvatar(radius:r,backgroundColor:bg??C.primaryLt,
